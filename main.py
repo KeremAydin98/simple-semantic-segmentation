@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from models import Augment
 import config
 import os
 
@@ -26,6 +27,8 @@ steps_per_epoch = train_length // batch_size
 # Split train and test data
 train_images, test_images, train_masks, test_masks = train_test_split(images, masks, test_size=0.2)
 
+train_batches = train_images.cache().shuffle(buffer_size).batch(batch_size).repeat().map(Augment()).prefetch(tf.data.AUTOTUNE)
+test_batches = test_images.batch(batch_size)
 
 
 
