@@ -12,6 +12,7 @@ def load_image(image_path, mask_path):
 
     image = tf.keras.utils.load_img(image_path)
     mask = tf.keras.utils.load_img(mask_path)
+    mask = tf.image.rgb_to_grayscale(mask)
 
     input_image = tf.image.resize(image, (128, 128))
     input_mask = tf.image.resize(mask, (128, 128), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)

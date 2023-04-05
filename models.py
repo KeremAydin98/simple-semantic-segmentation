@@ -21,7 +21,7 @@ class U_net:
     def __init__(self):
         super().__init__()
 
-        base_model = tf.keras.applications.MobleNetV2(input_shape=[128, 128, 3], include_top=False)
+        base_model = tf.keras.applications.MobileNetV2(input_shape=[128, 128, 3], include_top=False)
 
         layer_names = [
             "block_1_expand_relu", # 64x64
@@ -45,34 +45,41 @@ class U_net:
 
         """
 
-        return tf.keras.Sequential([
+        result = tf.keras.Sequential([
             tf.keras.layers.Conv2DTranspose(filters, size, strides=2, padding='same', use_bias=False),
-            tf.keras.layers.BatchNormaliztion(),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.ReLU()
         ])
+
+        return result
     
     def create_upstack(self):
 
-        self.upstack = [
-            self.upsample(512, 3),
-            self.upsample(256, 3),
-            self.upsample(128, 3),
-            self.upsample(64, 3),
-        ]
+        upsample_1 = self.upsample(512, 3)
+        upsample_2 = self.upsample(256, 3)
+        upsample_3 = self.upsample(128, 3)
+        upsample_4 = self.upsample(64, 3)
+
+        upstack = [upsample_1,
+                    upsample_2,
+                    upsample_3,
+                    upsample_4]
+
+        return upstack
     
     def create_model(self, output_channels):
 
-        self.create_upstack()
+        upstack = self.create_upstack()
 
         inputs = tf.keras.layers.Input(shape=[128, 128, 3])
 
         # Downsampling
         skips = self.down_stack(inputs)
-        x = skips[:-1]
+        x = skips[-1]
         skips = reversed(skips[:-1])
     
         # Upsampling and establishing skip connections
-        for up, skip in zip(self.upstack, skips):
+        for up, skip in zip(upstack, skips):
 
             x = up(x)
             concat = tf.keras.layers.Concatenate()
@@ -85,4 +92,4 @@ class U_net:
 
         x = last(x)
 
-        return tf.keras.Model(inputs=inputs, outputs=output_channels)
+        return tf.keras.Model(inputs=inputs, outputs=x)
