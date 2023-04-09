@@ -1,3 +1,1 @@
 # simple-semantic-segmentation
-
-# Introduction
