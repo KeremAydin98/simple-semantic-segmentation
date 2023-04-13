@@ -33,6 +33,7 @@ class U_net:
 
         base_model_outputs = [base_model.get_layer(name).output for name in layer_names]
 
+        # Entire left hand of U-net does not need weight adjustments
         self.down_stack = tf.keras.models.Model(inputs=base_model.input, outputs=base_model_outputs)
         self.down_stack.trainable = False
 
@@ -78,6 +79,7 @@ class U_net:
         x = skips[-1]
         skips = reversed(skips[:-1])
     
+        # Each stage of the decoder upstack is concatenated with the corresponding layer of the encoder down stack
         # Upsampling and establishing skip connections
         for up, skip in zip(upstack, skips):
 
