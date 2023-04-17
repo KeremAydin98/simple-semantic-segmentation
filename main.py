@@ -3,10 +3,8 @@ import zipfile
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 from models import Augment, U_net
 import config
-import os
 
 def display(display_list):
 
@@ -43,18 +41,20 @@ zip_ref.extractall()
 zip_ref.close()
 
 # Load images and masks
-image_paths = os.listdir(config.image_path)
-mask_paths = os.listdir(config.mask_path)
-image_paths = [config.image_path + image_path for image_path in image_paths]
-mask_paths = [config.mask_path + mask_path for mask_path in mask_paths]
-images, masks = load_images(image_paths, mask_paths)
+train_images, train_masks = load_images(config.train_image_path)
+test_images, test_masks = load_images(config.test_image_path)
 
 # Parameters
-batch_size = 8
+batch_size = 2
 buffer_size = 1000
 
+# Converting lists to numpy array
+train_images = np.array(train_images)
+train_masks = np.array(train_masks)
+test_images = np.array(test_images)
+test_masks = np.array(test_masks)
+
 # Split train and test data
-train_images, test_images, train_masks, test_masks = train_test_split(images, masks, test_size=0.2)
 train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_masks))
 test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_masks))
 
@@ -65,7 +65,7 @@ test_dataset = test_dataset.batch(batch_size)
 # Creating U-net semantic segmentation model
 u_net = U_net()
 u_net_model = u_net.create_model(3)
-u_net_model.compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+u_net_model.compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                     optimizer=tf.keras.optimizers.Adam(),
                     metrics=["accuracy"])
 

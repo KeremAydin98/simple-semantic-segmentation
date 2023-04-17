@@ -1,4 +1,4 @@
 env
 archive.zip
-images
-masks
+archive
+cityscapes_data
