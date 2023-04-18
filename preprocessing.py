@@ -1,47 +1,44 @@
 import tensorflow as tf
 import numpy as np
+import config
 import os
 
 
 def preprocess(image):
 
-    input_image, input_mask =  np.array(image)[:,:256, :], np.array(image)[:,256:, :]
+  # Resize the input image and mask using TensorFlow operations
+  input_image = tf.image.resize(image[:, :256, :], (128, 128))
+  input_mask = tf.image.resize(image[:, 256:, :], (128, 128))
 
-    input_image = tf.image.resize(input_image, (128, 128))
-    input_mask = tf.image.resize(input_mask, (128, 128))
+  # Normalize the input image and cast the input mask to integer type using TensorFlow operations
+  input_image = tf.cast(input_image, tf.float32) / 255.0
+  input_mask = tf.cast(input_mask, tf.int32)
 
-    input_image = tf.cast(input_image, tf.float32) / 255.0
-    input_mask = tf.cast(input_mask, tf.int32)
 
-    return input_image, input_mask
-
+  return input_image, input_mask
 
 
 def load_image(image_path):
 
-    image = tf.keras.utils.load_img(image_path)
+    image = tf.io.read_file(image_path)
+    image = tf.image.decode_image(image, channel=3)
 
     input_image, input_mask =  preprocess(image)
 
     mask = np.zeros(shape=(128, 128), dtype = np.uint32)
 
-    for row in range(128):
-        for col in range(128):
+    for row in range(input_mask.shape[0]):
+        for col in range(input_mask.shape[1]):
             a = input_mask[row, col, :]
-            final_key = None
-            final_d = None
-            for key, value in id_map.items():
-                d = np.sum(np.sqrt(pow(a - value, 2)))
-                if final_key == None:
-                    final_d = d
-                    final_key = key
-                elif d < final_d:
-                    final_d = d
-                    final_key = key
-            mask[row, col] = final_key
+
+            # Compute the distance between the pixel color and each label color
+            distances = np.sqrt(np.sum(np.square(a - np.array(list(config.id_map.values()))), axis=1))
+
+            # Find the index of the label with the smallest distance
+            mask[row, col] = np.argmin(distances)
+
 
     return input_image, mask
-
 
 def load_images(image_directory):
 
@@ -60,4 +57,8 @@ def load_images(image_directory):
         masks.append(input_mask)
 
     return images, masks
+
+
+
+
 
