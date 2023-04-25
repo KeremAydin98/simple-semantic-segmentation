@@ -97,8 +97,6 @@ class U_net:
         return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-
-
 class FCN(tf.keras.Model):
 
   def __init__(self):
