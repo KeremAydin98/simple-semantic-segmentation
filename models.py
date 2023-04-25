@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+# Data augmentation class
 class Augment(tf.keras.layers.Layer):
 
     def __init__(self, seed=61):
@@ -16,6 +17,8 @@ class Augment(tf.keras.layers.Layer):
 
         return images, masks
     
+
+# U-net model structure class
 class U_net:
 
     def __init__(self):
@@ -68,11 +71,9 @@ class U_net:
 
         return upstack
     
-    def create_model(self, output_channels):
+    def call(self, inputs):
 
         upstack = self.create_upstack()
-
-        inputs = tf.keras.layers.Input(shape=[128, 128, 3])
 
         # Downsampling
         skips = self.down_stack(inputs)
@@ -89,14 +90,15 @@ class U_net:
 
         # This is the last layer
         last = tf.keras.layers.Conv2DTranspose(
-            filters = output_channels, kernel_size=3, strides=2, padding='same'
+            filters = 1, kernel_size=3, strides=2, padding='same'
         )
 
-        x = last(x)
+        outputs = last(x)
 
-        return tf.keras.Model(inputs=inputs, outputs=x)
+        return outputs
 
 
+# FCN model structure class
 class FCN(tf.keras.Model):
 
   def __init__(self):
@@ -133,7 +135,7 @@ class FCN(tf.keras.Model):
     self.final = tf.keras.layers.Conv2DTranspose(filters=3, kernel_size=16, strides=8,
                               padding='same', activation=None)
     
-  def create_model(self, inputs):
+  def call(self, inputs):
 
     x = self.base_model(inputs)
 
@@ -150,7 +152,6 @@ class FCN(tf.keras.Model):
     # Merging the 2 feature maps (addition):
     merge1 = tf.keras.layers.add([upsampled_f5, f4_out]) 
 
-
     merge1_x2 = self.merge_upsample(merge1)
 
     f3_out = self.f3_conv1(f3)
@@ -160,4 +161,139 @@ class FCN(tf.keras.Model):
     outputs = self.final(merge2)
 
     return outputs
+
+
+class DeepLabV3:
+
+    def __init__(self):
+
+        base_model = tf.keras.applications.MobileNetV2(input_shape=[128, 128, 3], include_top=False)
+
+        layer_names = [
+            "block_1_expand_relu", # 64x64
+            "block_3_expand_relu", # 32x32
+            "block_6_expand_relu", # 16x16
+            "block_13_expand_relu", # 8x8
+        ]
+
+        base_model_outputs = [base_model.get_layer(name).output for name in layer_names]
+
+        # Entire left hand of U-net does not need weight adjustments
+        self.down_stack = tf.keras.models.Model(inputs=base_model.input, outputs=base_model_outputs)
+        self.down_stack.trainable = False
+
+        self.upsampling = tf.keras.layers.UpSampling2D(interpolation="bilinear")
+
+        self.ConvUpscaleBlock = tf.keras.Sequential([
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.ReLU(),
+            tf.keras.layers.Conv2DTranspose(filters=32, kernel_size=3, stride=[2, 2], activation="relu")
+        ])
+
+        self.ConvBlock = tf.keras.Sequential([
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.ReLU(),
+            tf.keras.layers.Conv2D(32, 3, activation="relu")
+        ])
+
+    def AtrousSpatialPyramidPoolingModule(self, inputs):
+
+        image_features = tf.reduce_mean(inputs, [1,2], keep_dims=True)
+
+        image_features = tf.keras.layers.Conv2D(256, 1, activation="relu")(image_features)
+        image_features = tf.keras.layers.Upsampling2D(interploation="bilinear")(image_features)
+
+        atrous_block_1 = tf.keras.layers.Conv2D(256, 1, activation="relu")(image_features)
+        atrous_block_6 = tf.keras.layers.Conv2D(256, 3, dilation_rate=6, activation="relu")(image_features)
+        atrous_block_12 = tf.keras.layers.Conv2D(256, 3, dilation_rate=12, activation="relu")(image_features)
+        atrous_block_18 = tf.keras.layers.Conv2D(256, 3, dilation_rate=18, activation="relu")(image_features)
+
+        net = tf.concat((image_features, atrous_block_1, atrous_block_6, atrous_block_12, atrous_block_18), axis=3)
+        net = tf.keras.layers.Conv2D(256, 1, activation="relu")(net)
+
+        return net 
+
+    def call(self, inputs):
+
+        x = self.down_stack(inputs)
+
+        x = self.AtrousSpatialPyramidPoolingModule(x)
+
+        x = self.upsampling(x)
+
+        outputs = tf.keras.layers.Conv2D(256, 31, [1,1], activation="softmax")(x)
+
+        return outputs
+    
+
+class DeepLabV3_plus:
+
+    def __init__(self):
+
+        base_model = tf.keras.applications.MobileNetV2(input_shape=[128, 128, 3], include_top=False)
+
+        layer_names = [
+            "block_1_expand_relu", # 64x64
+            "block_3_expand_relu", # 32x32
+            "block_6_expand_relu", # 16x16
+            "block_13_expand_relu", # 8x8
+        ]
+
+        base_model_outputs = [base_model.get_layer(name).output for name in layer_names]
+
+        # Entire left hand of U-net does not need weight adjustments
+        self.down_stack = tf.keras.models.Model(inputs=base_model.input, outputs=base_model_outputs)
+        self.down_stack.trainable = False
+
+        self.ConvUpscaleBlock = tf.keras.Sequential([
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.ReLU(),
+            tf.keras.layers.Conv2DTranspose(filters=32, kernel_size=3, stride=[2, 2], activation="relu")
+        ])
+
+        self.ConvBlock = tf.keras.Sequential([
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.ReLU(),
+            tf.keras.layers.Conv2D(32, 3, activation="relu")
+        ])
+
+    def AtrousSpatialPyramidPoolingModule(self, inputs):
+
+        image_features = tf.reduce_mean(inputs, [1,2], keep_dims=True)
+
+        image_features = tf.keras.layers.Conv2D(256, 1, activation="relu")(image_features)
+        image_features = tf.keras.layers.Upsampling2D(interploation="bilinear")(image_features)
+
+        atrous_block_1 = tf.keras.layers.Conv2D(256, 1, activation="relu")(image_features)
+        atrous_block_6 = tf.keras.layers.Conv2D(256, 3, dilation_rate=6, activation="relu")(image_features)
+        atrous_block_12 = tf.keras.layers.Conv2D(256, 3, dilation_rate=12, activation="relu")(image_features)
+        atrous_block_18 = tf.keras.layers.Conv2D(256, 3, dilation_rate=18, activation="relu")(image_features)
+
+        net = tf.concat((image_features, atrous_block_1, atrous_block_6, atrous_block_12, atrous_block_18), axis=3)
+        net = tf.keras.layers.Conv2D(256, 1, activation="relu")(net)
+
+        return net 
+
+    def call(self, inputs):
+
+        encoder_features = self.down_stack(inputs)
+
+        x = self.AtrousSpatialPyramidPoolingModule(encoder_features)
+        x = tf.keras.layers.Conv2D(256, 1, activation="relu")(x)
+        decoder_features = self.upsampling(x)
+
+        encoder_features = tf.keras.layers.Conv2D(48, 1, activation="relu")(encoder_features)
+
+        net = tf.concat((encoder_features, decoder_features), axis=3)
+
+        net = tf.keras.layers.Conv2D(256, 3, activation="relu")(net)
+        net = tf.keras.layers.Conv2D(256, 3, activation="relu")(net)
+        
+        net = tf.keras.layers.UpSampling2D(interpolation="bilinear")(net)
+
+        outputs = tf.keras.layers.Conv2D(256, 31, [1,1], activation="softmax")(net)
+
+        return outputs
+
+
 
