@@ -162,3 +162,4 @@ class FCN(tf.keras.Model):
     outputs = self.final(merge2)
 
     return outputs
+

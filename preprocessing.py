@@ -3,55 +3,49 @@ import numpy as np
 import config
 import os
 
+def preprocess(image, mask, label_dict):
 
-def preprocess(image):
+    # Normalize the input image and cast the input mask to integer type using TensorFlow operations
+    input_image = tf.cast(image, tf.float32) / 255.0
+    input_mask = tf.cast(mask, tf.int32)
+    
+    mask = np.zeros(shape=(720, 960))
+    
+    for x in range(720):
+        for y in range(960):
 
-  # Resize the input image and mask using TensorFlow operations
-  input_image = tf.image.resize(image[:, :256, :], (128, 128))
-  input_mask = tf.image.resize(image[:, 256:, :], (128, 128))
-
-  # Normalize the input image and cast the input mask to integer type using TensorFlow operations
-  input_image = tf.cast(input_image, tf.float32) / 255.0
-  input_mask = tf.cast(input_mask, tf.int32)
-
-
-  return input_image, input_mask
-
-
-def load_image(image_path):
-
-    image = tf.io.read_file(image_path)
-    image = tf.image.decode_image(image, channel=3)
-
-    input_image, input_mask =  preprocess(image)
-
-    mask = np.zeros(shape=(128, 128), dtype = np.uint32)
-
-    for row in range(input_mask.shape[0]):
-        for col in range(input_mask.shape[1]):
-            a = input_mask[row, col, :]
-
-            # Compute the distance between the pixel color and each label color
-            distances = np.sqrt(np.sum(np.square(a - np.array(list(config.id_map.values()))), axis=1))
-
-            # Find the index of the label with the smallest distance
-            mask[row, col] = np.argmin(distances)
-
+            mask[x,y] = label_dict[str(np.array(input_mask[x,y,:]))]
 
     return input_image, mask
 
-def load_images(image_directory):
+
+def load_image(image_path, mask_path, label_dict):
+
+    image = tf.io.read_file(image_path)
+    image = tf.image.decode_image(image)
+
+    mask = tf.io.read_file(mask_path)
+    mask = tf.image.decode_image(mask)
+
+    image, mask = preprocess(image, mask, label_dict)
+
+    return image, mask
+
+
+def load_images(image_directory, label_dict):
 
     images_dir = os.listdir(image_directory)
+    masks_dir = os.listdir(image_directory + "_labels/")
 
-    image_paths = [image_directory + image_path for image_path in images_dir]
+    image_paths = [image_directory + "/" + image_path for image_path in images_dir]
+    masks_paths = [image_directory + "_labels" + "/" + mask_path for mask_path in masks_dir]
 
     images = []
     masks = []
 
-    for image_path in image_paths:
+    for image_path, mask_path in zip(image_paths,masks_paths):
 
-        input_image, input_mask = load_image(image_path)
+        input_image, input_mask = load_image(image_path, mask_path, label_dict)
 
         images.append(input_image)
         masks.append(input_mask)

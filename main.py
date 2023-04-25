@@ -35,11 +35,6 @@ def show_predictions(dataset, model):
         display([sample_img, sample_mask, predictions])
 
 
-# Extract the dataset from zipfile
-zip_ref = zipfile.ZipFile("archive.zip")
-zip_ref.extractall()
-zip_ref.close()
-
 # Load images and masks
 train_images, train_masks = load_images(config.train_image_path)
 test_images, test_masks = load_images(config.test_image_path)
