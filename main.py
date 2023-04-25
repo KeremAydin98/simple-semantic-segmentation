@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from preprocessing import *
 from models import *
+import glob
 
 def display(display_list):
 
@@ -34,25 +35,31 @@ def show_predictions(dataset, model):
         display([sample_img, sample_mask, predictions])
 
 # Load index labels
-df = pd.read_csv("./CamVid/class_dict.csv")
-df = df[["r", "g", "b"]]
-label_dict = {str(np.array(label)):index for index, label in df.iterrows()}
-
-# Loading the dataset
-train_images, train_masks = load_images("CamVid/train", label_dict)
-val_images, val_masks = load_images("CamVid/val", label_dict)
-test_images, test_masks = load_images("CamVid/test", label_dict)
+df = pd.read_csv("./CamVid/class_dict.csv")[["r", "g", "b"]]
+label_dict = {str(row.values): i for i, row in enumerate(df.values)}
 
 # Parameters
 batch_size = 32
 buffer_size = 1000
 
-# Converting numpy arrays to tf.data.Dataset 
-train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_masks))
-val_dataset = tf.data.Dataset.from_tensor_slices((val_images, val_masks))
-test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_masks))
-train_dataset = train_dataset.cache().shuffle(buffer_size).batch(batch_size).repeat().map(Augment()).prefetch(tf.data.AUTOTUNE)
+# Loading the datasets
+image_paths = glob.glob("./CamVid/train/*")
+mask_paths = [p.replace("train", "train_labels") for p in image_paths]
+train_dataset = tf.data.Dataset.from_tensor_slices((image_paths, mask_paths))
+train_dataset = train_dataset.map(lambda x, y: preprocess(x, y, label_dict))
+train_dataset = train_dataset.batch(batch_size)
+
+image_paths = glob.glob("./CamVid/val/*")
+mask_paths = [p.replace("val", "val_labels") for p in image_paths]
+val_dataset = tf.data.Dataset.from_tensor_slices((image_paths, mask_paths))
+val_dataset = val_dataset.map(lambda x, y: preprocess(x, y, label_dict))
 val_dataset = val_dataset.batch(batch_size)
+
+image_paths = glob.glob("./CamVid/test/*")
+mask_paths = [p.replace("test", "test_labels") for p in image_paths]
+test_dataset = tf.data.Dataset.from_tensor_slices((image_paths, mask_paths))
+test_dataset = test_dataset.map(lambda x, y: preprocess(x, y, label_dict))
+test_dataset = test_dataset.batch(batch_size)
 
 # Creating model
 u_net_model = U_net()
@@ -62,8 +69,8 @@ u_net_model.compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                     metrics=["accuracy"])
 
 # Training the model
-steps_per_epoch = len(train_images) // batch_size
-validation_steps = len(val_images) // batch_size
+steps_per_epoch = len(os.listdir("./CamVid/train/")) // batch_size
+validation_steps = len(os.listdir("./CamVid/val/")) // batch_size
 
 history = model.fit(train_dataset, epochs=10, validation_data=val_dataset, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps)
 
