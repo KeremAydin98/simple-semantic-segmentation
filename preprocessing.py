@@ -1,67 +1,62 @@
 import tensorflow as tf
 import numpy as np
-import config
 import os
+import config
 
-def preprocess(image, mask, label_dict):
+def preprocess(image):
 
-    # Normalize the input image and cast the input mask to integer type using TensorFlow operations
-    input_image = tf.cast(image, tf.float32) / 255.0
-    input_mask = tf.cast(mask, tf.int32)
+  # Resize the input image and mask using TensorFlow operations
+  input_image = image[:, :256, :]
+  input_mask = image[:, 256:, :]
 
-    input_image = tf.image.resize(input_image, (128, 128))
-    input_mask = tf.image.resize(input_mask, (128, 128))
-    
-    mask = np.zeros(shape=(128, 128))
-    
-    for i, label in label_dict.items():
-        mask[np.all(input_mask == np.array(i).astype(int), axis=-1)] = label
+  input_image = tf.image.central_crop(input_image, 0.5)
+  input_mask = tf.image.central_crop(input_mask, 0.5) 
 
-    return input_image, mask
+  # Normalize the input image and cast the input mask to integer type using TensorFlow operations
+  input_image = tf.cast(input_image, tf.float32) / 255.0
+  input_mask = tf.cast(input_mask, tf.int32)
 
 
-def load_image(image_path, mask_path, label_dict):
+  return input_image, input_mask
+
+
+def load_image(image_path):
 
     image = tf.io.read_file(image_path)
     image = tf.image.decode_image(image)
 
-    mask = tf.io.read_file(mask_path)
-    mask = tf.image.decode_image(mask)
+    input_image, input_mask =  preprocess(image)
 
-    mask = tf.reduce_sum(mask * tf.constant([1, 256, 256*256], dtype=tf.int32), axis=-1)
-    mask = tf.cast(mask, tf.int32)
-    mask = tf.map_fn(lambda x: label_dict[str(x.numpy())], mask, dtype=tf.int32)
+    # Precompute the distances between all pairs of pixel colors and label colors
+    label_colors = np.array(list(config.id_map.values()))
+    distances = np.sqrt(np.sum(np.square(input_mask[:, :, np.newaxis, :] - label_colors[np.newaxis, np.newaxis, :, :]), axis=3))
 
-    image = tf.image.resize(image, (128, 128))
-    image = tf.cast(image, tf.float32) / 255.0
-    
-    mask = tf.image.resize(mask[..., tf.newaxis], (128, 128))
+    # Find the index of the label with the smallest distance for each pixel
+    mask = np.argmin(distances, axis=2)
 
-    return image, mask[..., 0]
+    return input_image, mask
 
-
-
-def load_images(image_directory, label_dict):
+def load_images(image_directory, n_dataset=None):
 
     images_dir = os.listdir(image_directory)
-    masks_dir = os.listdir(image_directory + "_labels/")
 
-    image_paths = [image_directory + "/" + image_path for image_path in images_dir]
-    masks_paths = [image_directory + "_labels" + "/" + mask_path for mask_path in masks_dir]
+    image_paths = [image_directory + image_path for image_path in images_dir]
 
     images = []
     masks = []
 
-    for image_path, mask_path in zip(image_paths,masks_paths):
+    for i, image_path in enumerate(image_paths):
 
-        input_image, input_mask = load_image(image_path, mask_path, label_dict)
+        input_image, input_mask = load_image(image_path)
 
         images.append(input_image)
         masks.append(input_mask)
 
+        if n_dataset:
+          print(f"Done {i+1}/{n_dataset}")
+          if i+1 == n_dataset:
+            break
+        else:
+          print(f"Done {i+1}/{len(image_paths)}")
+
     return images, masks
-
-
-
-
-
