@@ -13,10 +13,10 @@ def extract_data(root_paths, n_images=None):
 
   for root_path in root_paths:
 
-    for path in os.listdir(root_path):
+    for path in os.listdir("./data/" + root_path):
 
-      image_path = os.path.join(root_path, path)
-      mask_path = os.path.join("L" + root_path[1:], path)
+      image_path = os.path.join("./data/" + root_path, path)
+      mask_path = os.path.join("./data/" + "L" + root_path[1:], path)
 
       smaller_image_path = image_path + "/img/"
       smaller_mask_path = mask_path + "/msk/"
