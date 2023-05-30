@@ -1,7 +1,5 @@
 import tensorflow as tf
 
-import tensorflow as tf
-
 class Augment(tf.keras.layers.Layer):
 
     def __init__(self, seed=61):
