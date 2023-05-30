@@ -5,6 +5,8 @@ import pandas as pd
 from preprocessing import *
 from models import *
 import glob
+import zipfile
+
 
 def display(display_list):
 
@@ -35,44 +37,48 @@ def show_predictions(dataset, model):
         display([sample_img, sample_mask, predictions])
 
 # Load index labels
-df = pd.read_csv("./CamVid/class_dict.csv")[["r", "g", "b"]]
-label_dict = {str(row.values): i for i, row in enumerate(df.values)}
+zip_ref = zipfile.ZipFile("flair.zip")
+zip_ref.extractall()
+zip_ref.close()
+
+zip_ref = zipfile.ZipFile("labels.zip")
+zip_ref.extractall()
+zip_ref.close()
 
 # Parameters
 batch_size = 32
 buffer_size = 1000
 
 # Loading the datasets
-image_paths = glob.glob("./CamVid/train/*")
-mask_paths = [p.replace("train", "train_labels") for p in image_paths]
-train_dataset = tf.data.Dataset.from_tensor_slices((image_paths, mask_paths))
-train_dataset = train_dataset.map(lambda x, y: preprocess(x, y, label_dict))
-train_dataset = train_dataset.batch(batch_size)
+train_images, train_masks = extract_data(['D075_2021','D076_2019', 'D083_2020'])
+test_images, test_masks = extract_data(['D085_2019'])
 
-image_paths = glob.glob("./CamVid/val/*")
-mask_paths = [p.replace("val", "val_labels") for p in image_paths]
-val_dataset = tf.data.Dataset.from_tensor_slices((image_paths, mask_paths))
-val_dataset = val_dataset.map(lambda x, y: preprocess(x, y, label_dict))
-val_dataset = val_dataset.batch(batch_size)
+# arrays to tf.data.dataset format
+train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_masks))
+test_dataset = tf.data.Dataset.from_tensor_slices((test_images, test_masks))
 
-image_paths = glob.glob("./CamVid/test/*")
-mask_paths = [p.replace("test", "test_labels") for p in image_paths]
-test_dataset = tf.data.Dataset.from_tensor_slices((image_paths, mask_paths))
-test_dataset = test_dataset.map(lambda x, y: preprocess(x, y, label_dict))
-test_dataset = test_dataset.batch(batch_size)
+train_dataset = train_dataset.cache().shuffle(buffer_size).batch(batch_size).repeat().map(Augment()).prefetch(tf.data.AUTOTUNE)
+test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
 # Creating model
-u_net_model = U_net()
-model = u_net_model.create_model(1)
-u_net_model.compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+model = U_net()
+model.compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                     optimizer=tf.keras.optimizers.Adam(),
                     metrics=["accuracy"])
 
 # Training the model
-steps_per_epoch = len(os.listdir("./CamVid/train/")) // batch_size
-validation_steps = len(os.listdir("./CamVid/val/")) // batch_size
+steps_per_epoch = len(train_images) // batch_size
+validation_steps = len(test_images) // batch_size
 
-history = model.fit(train_dataset, epochs=10, validation_data=val_dataset, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps)
+
+early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+
+history = model.fit(train_dataset, epochs=100, steps_per_epoch=steps_per_epoch,
+                          validation_steps=validation_steps, validation_data=test_dataset, callbacks=[early_stopping])
+
+
+# The '.h5' extension indicates that the model should be saved to HDF5.
+model.save_weights('u_net.h5')
 
 # Show predictions 
 show_predictions(test_dataset, model)

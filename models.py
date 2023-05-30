@@ -17,13 +17,26 @@ class Augment(tf.keras.layers.Layer):
         masks = self.augment_masks(masks)
 
         return images, masks
+
+class UpdatedMeanIoU(tf.keras.metrics.MeanIoU):
+  def __init__(self,
+               y_true=None,
+               y_pred=None,
+               num_classes=None,
+               name=None,
+               dtype=None):
+    super(UpdatedMeanIoU, self).__init__(num_classes = num_classes,name=name, dtype=dtype)
+
+  def update_state(self, y_true, y_pred, sample_weight=None):
+    y_pred = tf.math.argmax(y_pred, axis=-1)
+    return super().update_state(y_true, y_pred, sample_weight)
     
 class U_net(tf.keras.Model):
 
     def __init__(self):
         super().__init__()
 
-        base_model = tf.keras.applications.MobileNetV2(input_shape=[128,128, 3], weights="imagenet", include_top=False)
+        base_model = tf.keras.applications.MobileNetV2(input_shape=[224,224, 3], weights="imagenet", include_top=False)
 
         layer_names = [
             "block_1_expand_relu", # 64x64
