@@ -71,3 +71,6 @@ model.save_weights('u_net.h5')
 
 # Show predictions 
 show_predictions(test_dataset, model)
+
+if __name__ == "__main__":
+    pass
