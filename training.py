@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from preprocessing import *
 from models import *
-import zipfile
 
 
 def display(display_list):
@@ -35,22 +34,13 @@ def show_predictions(dataset, model):
 
         display([sample_img, sample_mask, predictions])
 
-# Load index labels
-zip_ref = zipfile.ZipFile("flair.zip")
-zip_ref.extractall()
-zip_ref.close()
-
-zip_ref = zipfile.ZipFile("labels.zip")
-zip_ref.extractall()
-zip_ref.close()
-
 # Parameters
 batch_size = 32
 buffer_size = 1000
 
 # Loading the datasets
 train_images, train_masks = extract_data(['D075_2021','D076_2019', 'D083_2020'])
-test_images, test_masks = extract_data(['D085_2019'])
+test_images, test_masks  = extract_data(['D085_2019'], n_images=100)
 
 # arrays to tf.data.dataset format
 train_dataset = tf.data.Dataset.from_tensor_slices((train_images, train_masks))

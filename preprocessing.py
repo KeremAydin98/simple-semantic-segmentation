@@ -34,7 +34,7 @@ def extract_data(root_paths, n_images=None):
         iteration += 1
 
         if n_images:
-          if iteration == n_images:
+          if iteration > n_images:
             images = np.array(images)
             masks = np.array(masks) 
             return images, masks
